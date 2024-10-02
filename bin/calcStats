@@ -1,0 +1,79 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Getopt::Long;
+use Bio::Seq;
+use Bio::SeqIO;
+use Bio::Tools::SeqStats;
+use Bio::Tools::pICalculator;
+
+use constant DEBUG => 0;
+
+my ($dataset, $outFile);
+&GetOptions(
+    "dataset=s"       => \$dataset,
+    "outFile=s"       => \$outFile);
+
+unless ($dataset && $outFile ) { die "args dataset and outfile are required\n" };
+unless (-e $dataset) { die "$dataset not found\n" };
+
+open (OUT, ">>$outFile") or die "Can't open '$outFile' for writing\n";
+
+##########################
+##### "main()" ###########
+
+if ( -f $dataset ) {
+    warn "Processing $dataset\n" if DEBUG;
+    processOneFile($dataset, \*OUT);
+} elsif ( -d $dataset ) {
+    opendir(DIR, $dataset) or die("Cannot open directory $dataset\n");
+    while (my $file = readdir(DIR)) {
+        next if ($file =~ /^\.\.?$/);
+        warn "Processing $file\n" if DEBUG;
+        processOneFile("$dataset/$file", \*OUT);
+    }
+    closedir(DIR);
+ }
+ 
+##########################
+
+
+
+###############################################################
+## subroutines ################################################
+
+sub processOneFile {
+    my ($inputFile, $fh) = @_;
+
+    $inputFile =~ s/(.*\.gz)\s*$/gzip -dc < $1|/;
+    $inputFile =~ s/(.*\.Z)\s*$/uncompress -c < $1|/;
+    
+    my $seqIO = Bio::SeqIO->new(-file => $inputFile);
+    my $pIcalc = Bio::Tools::pICalculator->new();
+
+    while (my $richSeqObj = $seqIO->next_seq) {
+	my $seq = Bio::Seq->new(-id => $richSeqObj->id,
+				-seq => $richSeqObj->seq,
+				-alphabet => "protein");
+
+        processOneSeq($seq, $richSeqObj->id, $pIcalc, $fh);
+    }
+}
+
+sub processOneSeq {
+    my ($seqObj, $id, $pIcalc, $fh) = @_;
+
+    my ($minWt, $maxWt) =
+      @{Bio::Tools::SeqStats->get_mol_wt($seqObj)};
+
+    $pIcalc->seq($seqObj);
+
+    my $isoelectricPoint = $pIcalc->iep();
+
+    my $hp = Bio::Tools::SeqStats->hydropathicity($seqObj);
+
+    print $fh "$id\t$isoelectricPoint\t$minWt\t$maxWt\t$hp\n";
+}
+
+
