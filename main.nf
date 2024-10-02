@@ -23,7 +23,7 @@ else {
 
 workflow {
   tabfiles = findStats(seqs)
-  catFiles(tabfiles.collectFile(), params.outputFileName)
+  tabfiles.collectFile(name: params.outputFileName, storeDir: params.outputDir)
 }
 
 process findStats {
@@ -37,7 +37,7 @@ input:
 
   script:
   """
-  calcStats --dataset $subsetFasta \
+  calcStats --fastaFile $subsetFasta \
     --outFile stats_subset.tab
   """
 }
