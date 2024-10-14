@@ -1,0 +1,69 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Getopt::Long;
+use Bio::Seq;
+use Bio::SeqIO;
+use Bio::Tools::SeqStats;
+use Bio::Tools::pICalculator;
+
+use constant DEBUG => 0;
+
+my ($fastaFile, $outFile);
+&GetOptions(
+    "fastaFile=s"       => \$fastaFile,
+    "outFile=s"       => \$outFile);
+
+unless ($fastaFile && $outFile ) { die "args fastaFile and outfile are required\n" };
+unless (-e $fastaFile) { die "file $fastaFile not found\n" };
+
+open (OUT, ">>$outFile") or die "Can't open '$outFile' for writing\n";
+
+##########################
+##### "main()" ###########
+
+processFile($fastaFile, \*OUT);
+ 
+##########################
+
+
+
+###############################################################
+## subroutines ################################################
+
+sub processFile {
+    my ($inputFile, $fh) = @_;
+
+    $inputFile =~ s/(.*\.gz)\s*$/gzip -dc < $1|/;
+    $inputFile =~ s/(.*\.Z)\s*$/uncompress -c < $1|/;
+    
+    my $seqIO = Bio::SeqIO->new(-file => $inputFile);
+    my $pIcalc = Bio::Tools::pICalculator->new();
+
+    while (my $richSeqObj = $seqIO->next_seq) {
+	$richSeqObj->alphabet('protein');
+	my $seq = Bio::Seq->new(-id => $richSeqObj->id,
+				-seq => $richSeqObj->seq,
+				-alphabet => "protein");
+
+        processOneSeq($richSeqObj, $richSeqObj->id, $pIcalc, $fh);
+    }
+}
+
+sub processOneSeq {
+    my ($seqObj, $id, $pIcalc, $fh) = @_;
+
+    my ($minWt, $maxWt) =
+      @{Bio::Tools::SeqStats->get_mol_wt($seqObj)};
+
+    $pIcalc->seq($seqObj);
+
+    my $isoelectricPoint = $pIcalc->iep();
+
+    my $hp = Bio::Tools::SeqStats->hydropathicity($seqObj);
+
+    print $fh "$id\t$isoelectricPoint\t$minWt\t$maxWt\t$hp\n";
+}
+
+
