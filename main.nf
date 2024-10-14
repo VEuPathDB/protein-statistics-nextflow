@@ -41,22 +41,3 @@ input:
     --outFile stats_subset.tab
   """
 }
-
-process catFiles {
-  container = 'bioperl/bioperl:stable'
-
-  publishDir params.outputDir, mode: 'copy'
-
-  input:
-    path tab
-    val outputFileName
-
-  output:
-    path 'proteinStats.tab'
-
-  script:
-  """
-  cat $tab >> $outputFileName
-  """
-}
-
