@@ -61,9 +61,7 @@ sub processOneSeq {
 
     my $isoelectricPoint = $pIcalc->iep();
 
-    my $hp = Bio::Tools::SeqStats->hydropathicity($seqObj);
-
-    print $fh "$id\t$isoelectricPoint\t$minWt\t$maxWt\t$hp\n";
+    print $fh "$id\t$isoelectricPoint\t$minWt\t$maxWt\n";
 }
 
 
