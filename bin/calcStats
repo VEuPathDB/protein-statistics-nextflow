@@ -8,22 +8,54 @@ use Bio::SeqIO;
 use Bio::Tools::SeqStats;
 use Bio::Tools::pICalculator;
 
+
+
 use constant DEBUG => 0;
 
-my ($fastaFile, $outFile);
+my ($fastaFile, $outFile, $hydropathyOutput, $proteinSizesOutput);
 &GetOptions(
     "fastaFile=s"       => \$fastaFile,
-    "outFile=s"       => \$outFile);
+    "outFile=s"       => \$outFile,
+    "hydropathyOutput=s" => \$hydropathyOutput,
+    "proteinSizesOutput=s" => \$proteinSizesOutput,
+
+    );
 
 unless ($fastaFile && $outFile ) { die "args fastaFile and outfile are required\n" };
 unless (-e $fastaFile) { die "file $fastaFile not found\n" };
 
-open (OUT, ">>$outFile") or die "Can't open '$outFile' for writing\n";
+open (OUT, ">$outFile") or die "Can't open '$outFile' for writing\n";
+
+open (BED, ">$hydropathyOutput") or die "Can't open '$hydropathyOutput' for writing\n";
+
+open (SIZES, ">$proteinSizesOutput") or die "Can't open '$proteinSizesOutput' for writing\n";
+
+my %HYDROPATHY_INDEX = ( 'I' => 4.5,
+                         'V' => 4.2,
+                         'L' => 3.8,
+                         'F' => 2.8,
+                         'C' => 2.5,
+                         'M' => 1.9,
+                         'A' => 1.8,
+                         'G' => -0.4,
+                         'T' => -0.7,
+                         'W' => -0.9,
+                         'S' => -0.8,
+                         'Y' => -1.3,
+                         'P' => -1.6,
+                         'H' => -3.2,
+                         'E' => -3.5,
+                         'Q' => -3.5,
+                         'D' => -3.5,
+                         'N' => -3.5,
+                         'K' => -3.9,
+                         'R' => -4.5,);
+
 
 ##########################
 ##### "main()" ###########
 
-processFile($fastaFile, \*OUT);
+processFile($fastaFile, \*OUT, \*BED, \*SIZES);
  
 ##########################
 
@@ -33,7 +65,7 @@ processFile($fastaFile, \*OUT);
 ## subroutines ################################################
 
 sub processFile {
-    my ($inputFile, $fh) = @_;
+    my ($inputFile, $fh, $bedFh, $sizesFh) = @_;
 
     $inputFile =~ s/(.*\.gz)\s*$/gzip -dc < $1|/;
     $inputFile =~ s/(.*\.Z)\s*$/uncompress -c < $1|/;
@@ -42,12 +74,14 @@ sub processFile {
     my $pIcalc = Bio::Tools::pICalculator->new();
 
     while (my $richSeqObj = $seqIO->next_seq) {
-	$richSeqObj->alphabet('protein');
-	my $seq = Bio::Seq->new(-id => $richSeqObj->id,
-				-seq => $richSeqObj->seq,
-				-alphabet => "protein");
+        $richSeqObj->alphabet('protein');
 
-        processOneSeq($richSeqObj, $richSeqObj->id, $pIcalc, $fh);
+        my $proteinId = $richSeqObj->id();
+        processOneSeq($richSeqObj, $proteinId, $pIcalc, $fh);
+
+        hydropathy($richSeqObj, $proteinId, $bedFh);
+
+        print $sizesFh $proteinId, "\t", length($richSeqObj->seq()), "\n";
     }
 }
 
@@ -65,3 +99,24 @@ sub processOneSeq {
 }
 
 
+sub hydropathy {
+    my ($seqObj, $id, $fh) = @_;
+
+    my $proteinSeq = $seqObj->seq();
+
+
+
+    my @aminoAcids = split(//, $proteinSeq);
+    for(my $i = 0; $i < scalar @aminoAcids; $i++) {
+
+        my $aa = $aminoAcids[$i];
+
+        if(defined $HYDROPATHY_INDEX{$aa}) {
+            my $hydropathyScore = $HYDROPATHY_INDEX{$aa};
+            my $end = $i + 1;
+
+            print $fh "$id\t$i\t$end\t$hydropathyScore\n";
+        }
+    }
+
+}
