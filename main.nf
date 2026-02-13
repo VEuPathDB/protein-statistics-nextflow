@@ -31,7 +31,7 @@ workflow {
 }
 
 process findStats {
-  container = 'bioperl/bioperl:stable'
+  container 'bioperl/bioperl:stable'
 
   input:
   path subsetFasta
